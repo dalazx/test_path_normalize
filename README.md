@@ -6,3 +6,8 @@ cmake .
 make
 ./test_path
 ```
+
+### TODO:
+- [ ] add comments
+- [ ] cunit
+- [ ] valgrind
