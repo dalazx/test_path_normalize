@@ -1,8 +1,7 @@
-#include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include <assert.h>
 #include <stdbool.h>
+
+#define MAX_PATH_LENGTH 1024
 
 
 char *normalize(const char *path) {
@@ -11,27 +10,46 @@ char *normalize(const char *path) {
     }
 
     size_t path_len = strlen(path);
-    // TODO: check some reasonable boundaries
-    // printf("length: %zd\n", path_len);
+
+    if (path_len > MAX_PATH_LENGTH) {
+        return NULL;
+    }
 
     size_t path_buf_len = path_len + 2; // root slash + null byte
     char path_buf[path_buf_len];
     char *path_buf_ptr = path_buf + path_buf_len;
     *--path_buf_ptr = '\0';
 
-    size_t skip_counter = 0;
-    enum state_t {NOTHING, SEGMENT, SLASH, ONE_DOT, TWO_DOTS} state = NOTHING;
+    bool segment_slash = false;
+    size_t segment_end = 0;
+    size_t skip_segments = 0;
+    enum state_t {NOTHING, SLASH, SEGMENT, ONE_DOT, TWO_DOTS} state = NOTHING;
+
     for (int i = path_len - 1; i >= 0; i--) {
         char c = path[i];
         switch (state) {
             case NOTHING:
-                state = SEGMENT;
-            case SEGMENT:
                 if (c == '/') {
                     state = SLASH;
                     continue;
                 } else if (c == '.') {
+                    segment_end = i + 1;
                     state = ONE_DOT;
+                    continue;
+                } else {
+                    state = SEGMENT;
+                }
+                break;
+            case SEGMENT:
+                if (!segment_slash && c == '/') {
+                    state = SLASH;
+                    if (skip_segments) {
+                        skip_segments--;
+                    }
+                    continue;
+                }
+                segment_slash = false;
+                if (skip_segments) {
                     continue;
                 }
                 break;
@@ -39,11 +57,15 @@ char *normalize(const char *path) {
                 if (c == '/') {
                     continue;
                 } else if (c == '.') {
+                    segment_slash = true;
+                    segment_end = i + 2;
                     state = ONE_DOT;
                     continue;
                 } else {
+                    segment_slash = true;
                     state = SEGMENT;
-                    *--path_buf_ptr = '/';
+                    i += 2;
+                    continue;
                 }
                 break;
             case ONE_DOT:
@@ -55,19 +77,19 @@ char *normalize(const char *path) {
                     continue;
                 } else {
                     state = SEGMENT;
-                    *--path_buf_ptr = '.';
+                    i = segment_end;
+                    continue;
                 }
                 break;
             case TWO_DOTS:
                 if (c == '/') {
-                    // skip
-                } else if (c == '.') {
-                    // comment
+                    skip_segments++;
+                    state = SLASH;
                     continue;
                 } else {
                     state = SEGMENT;
-                    *--path_buf_ptr = '.';
-                    *--path_buf_ptr = '.';
+                    i = segment_end;
+                    continue;
                 }
                 break;
         }
@@ -76,46 +98,6 @@ char *normalize(const char *path) {
 
     *--path_buf_ptr = '/';
 
+    // TODO: exit if malloc failed
     return strdup(path_buf_ptr);
-}
-
-void test_normalize(const char *orig_path, const char *expected_path) {
-    char *path = normalize(orig_path);
-    printf("orig: %s; actual: %s; expected: %s\n",
-           orig_path, path, expected_path);
-    assert(!strcmp(path, expected_path));
-    free(path);
-}
-
-void test_base() {
-    normalize(NULL);
-    test_normalize("/", "/");
-    test_normalize("//", "/");
-    test_normalize("///", "/");
-
-    test_normalize(".", "/");
-    test_normalize("./", "/");
-    test_normalize("./.", "/");
-    test_normalize("/././", "/");
-    test_normalize("./././", "/");
-    test_normalize("./././.", "/");
-
-    test_normalize("foo", "/foo");
-    test_normalize("/foo", "/foo");
-    test_normalize("./foo", "/foo");
-    test_normalize("/foo/", "/foo/");
-    test_normalize("./foo/", "/foo/");
-    test_normalize("./foo/.", "/foo/");
-
-    test_normalize("foo/bar", "/foo/bar");
-    test_normalize("/foo/bar", "/foo/bar");
-    test_normalize("/foo/bar/", "/foo/bar/");
-    test_normalize("/foo/bar/.", "/foo/bar/");
-    test_normalize("./foo/bar/./.", "/foo/bar/");
-
-    // hidden files
-}
-
-int main(int argc, char **argv) {
-    test_base();
 }
