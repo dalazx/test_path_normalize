@@ -58,6 +58,7 @@ void test_normalize_all() {
     test_normalize(".foo", "/.foo");
     test_normalize(".foo.", "/.foo.");
     test_normalize(".foo/.bar", "/.foo/.bar");
+    test_normalize("..foo../..bar..", "/..foo../..bar..");
     test_normalize("/.foo/.bar", "/.foo/.bar");
     test_normalize("/.foo/.bar/", "/.foo/.bar/");
     test_normalize("././.foo/.bar/./.", "/.foo/.bar/");
